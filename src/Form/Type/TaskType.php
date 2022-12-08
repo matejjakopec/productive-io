@@ -2,9 +2,9 @@
 
 namespace App\Form\Type;
 
+use App\Controller\ProductiveClient;
 use Symfony\Component\Form\AbstractType;
 use Symfony\Component\Form\Extension\Core\Type\ChoiceType;
-use Symfony\Component\Form\Extension\Core\Type\DateType;
 use Symfony\Component\Form\Extension\Core\Type\NumberType;
 use Symfony\Component\Form\Extension\Core\Type\SubmitType;
 use Symfony\Component\Form\Extension\Core\Type\TextType;
@@ -14,18 +14,18 @@ use Symfony\Contracts\HttpClient\HttpClientInterface;
 
 class TaskType extends AbstractType
 {
-    private $client;
+    private $productiveClient;
 
-    public function __construct(HttpClientInterface $client)
+    public function __construct(ProductiveClient $productiveClient)
     {
-        $this->client = $client;
+        $this->productiveClient = $productiveClient;
     }
 
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
         $builder
             ->add('task_list', ChoiceType::class, [
-                'choices'  => $this->getTaskList()])
+                'choices'  => $this->productiveClient->fetchTaskList()])
             ->add('title', TextType::class)
             ->add('description', TextType::class)
             ->add('estimation', NumberType::class)
@@ -33,22 +33,4 @@ class TaskType extends AbstractType
         ;
     }
 
-
-    private function getTaskList(){
-        $response = $this->client->request('GET', 'https://api.productive.io/api/v2/task_lists?filter[project_id]=264012', [
-            'headers' => [
-                'Content-Type' => 'application/vnd.api+json',
-                'X-Auth-Token' => '639b5ddd-2a05-4c44-a33c-51513ad633d0',
-                'X-Organization-Id' => '4085',
-            ],
-        ]);
-        $data = $response->toArray()['data'];
-        $returnData = [];
-        foreach ($data as $datum){
-            $attributes = $datum['attributes'];
-            $name = $attributes['name'];
-            $returnData[$name] = $datum['id'];
-        }
-        return $returnData;
-    }
 }
