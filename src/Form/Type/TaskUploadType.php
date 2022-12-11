@@ -12,11 +12,13 @@ use Symfony\Component\Form\Extension\Core\Type\TextType;
 use Symfony\Component\Form\FormBuilderInterface;
 use Symfony\Component\Form\FormEvent;
 use Symfony\Component\Form\FormEvents;
+use Symfony\Component\OptionsResolver\OptionsResolver;
 use Symfony\Component\Validator\Constraints\File;
+
 
 class TaskUploadType extends AbstractType
 {
-    private $productiveClient;
+    private ProductiveClient $productiveClient;
 
     public function __construct(ProductiveClient $productiveClient)
     {
@@ -25,29 +27,55 @@ class TaskUploadType extends AbstractType
 
     public function buildForm(FormBuilderInterface $builder, array $options): void
     {
-        $builder->add('api_key',TextType::class, [
-                    'data' => $this->productiveClient->getApiKey()])
-                ->add('project', ChoiceType::class, [
+        $builder->add('apiKey',TextType::class);
+
+        $builder->addEventListener(FormEvents::PRE_SUBMIT, function (FormEvent $event){
+            $data = $event->getData();
+            $form = $event->getForm();
+            if(!empty($data['apiKey'])){
+                $this->productiveClient->setApiKey($data['apiKey']);
+                $this->productiveClient->fetchProjects();
+                if(!empty($data['projects'])){
+                    $this->productiveClient->setSelectedProject($data['projects']);
+                }
+                $form->add('projects', ChoiceType::class, [
                     'choices' => $this->productiveClient->getProjects(),
-                    'data' => $this->productiveClient->getSelectedProject()])
-                ->add('task_list', ChoiceType::class, [
+                    'data' => $this->productiveClient->getSelectedProject()]);
+            }
+            if(!empty($data['projects'])){
+                $this->productiveClient->setSelectedProject($data['projects']);
+                $this->productiveClient->fetchTaskList();
+                $form->add('taskList', ChoiceType::class, [
                     'choices' => $this->productiveClient->getTaskList(),
-                    'data' => $this->productiveClient->getSelectedTaskList()])
-                ->add('file', FileType::class,[
+                    'data' => $this->productiveClient->getSelectedTaskList()]);
+            }
+            if(!empty($data['taskList'])){
+                $this->productiveClient->setSelectedTaskList($data['taskList']);
+                $form->add('file', FileType::class,[
                     'label' => 'csv file',
                     'required' => false,
+                    'mapped' => false,
                     'constraints' => [
                         new File([
                             'maxSize' => '10240k',
-                            'mimeTypes' => ['text/csv'],
-                            'mimeTypesMessage' => 'Please upload a valid CSV document'
                         ])
                     ]
                 ]);
+            }
+            if(!empty($data['file'])){
+                $this->productiveClient->setFile($data['file']);
+            }
+        });
 
         $builder->add('Continue',SubmitType::class);
+    }
 
 
+
+
+    public function configureOptions(OptionsResolver $resolver)
+    {
+        $resolver->setDefaults(['data_class' => ProductiveClient::class]);
     }
 
 

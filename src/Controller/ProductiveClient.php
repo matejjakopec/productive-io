@@ -2,51 +2,52 @@
 
 namespace App\Controller;
 
-use Symfony\Component\Form\Form;
-use Symfony\Component\Form\FormInterface;
+use App\ApiHandler\ApiHandler;
+use Symfony\Bundle\FrameworkBundle\Controller\AbstractController;
+use Symfony\Component\Messenger\MessageBusInterface;
 use Symfony\Contracts\HttpClient\HttpClientInterface;
 
-class ProductiveClient
+class ProductiveClient extends AbstractController
 {
 
-    private static $client;
+    private $client;
 
-    private static $organizationID;
+    private $organizationID;
 
-    private static $apiKey;
+    private $apiKey;
 
-    private static $projects;
+    private $projects;
 
-    private static $selectedProject;
+    private $selectedProject;
 
-    private static $taskList;
+    private $taskList;
 
-    private static $selectedTaskList;
+    private $selectedTaskList;
 
-    public function __construct(HttpClientInterface $client)
+    private $file;
+
+    private $bus;
+
+    private $data;
+
+
+    public function __construct(HttpClientInterface $client, MessageBusInterface $bus)
     {
-        self::$client = $client;
+        $this->client = $client;
+        $this->bus = $bus;
     }
 
     public function makeTask(array $data){
-        foreach ($data as $datum){
-            self::$client->request('POST', 'https://api.productive.io/api/v2/tasks', [
-                'json' => $this->getRequestBody($datum),
-                'headers' => [
-                    'Content-Type' => 'application/vnd.api+json',
-                    'X-Auth-Token' => self::$apiKey,
-                    'X-Organization-Id' => self::$organizationID,
-                ],
-            ]);
-        }
+        $this->data = $data;
+        $this->bus->dispatch($this);
     }
 
     public function fetchTaskList(){
-        $response = self::$client->request('GET', 'https://api.productive.io/api/v2/task_lists?filter[project_id]=' . self::$selectedProject, [
+        $response = $this->client->request('GET', 'https://api.productive.io/api/v2/task_lists?filter[project_id]=' . $this->selectedProject, [
             'headers' => [
                 'Content-Type' => 'application/vnd.api+json',
-                'X-Auth-Token' => '639b5ddd-2a05-4c44-a33c-51513ad633d0',
-                'X-Organization-Id' => '4085',
+                'X-Auth-Token' => $this->apiKey,
+                'X-Organization-Id' => $this->organizationID,
             ],
         ]);
         $data = $response->toArray()['data'];
@@ -63,10 +64,10 @@ class ProductiveClient
 
 
     private function findOrganizationID(){
-        $response = self::$client->request('GET', 'https://api.productive.io/api/v2/users', [
+        $response = $this->client->request('GET', 'https://api.productive.io/api/v2/users', [
             'headers' => [
                 'Content-Type' => 'application/vnd.api+json',
-                'X-Auth-Token' => self::$apiKey
+                'X-Auth-Token' => $this->apiKey
             ],
         ]);
         $data = $response->toArray()['data'];
@@ -75,12 +76,12 @@ class ProductiveClient
     }
 
     public function fetchProjects(){
-        self::$organizationID == null ? $this->findOrganizationID() : null;
-        $response = self::$client->request('GET', 'https://api.productive.io/api/v2/projects', [
+        $this->organizationID == null ? $this->findOrganizationID() : null;
+        $response = $this->client->request('GET', 'https://api.productive.io/api/v2/projects', [
             'headers' => [
                 'Content-Type' => 'application/vnd.api+json',
-                'X-Auth-Token' => self::$apiKey,
-                'X-Organization-Id' => self::$organizationID,
+                'X-Auth-Token' => $this->apiKey,
+                'X-Organization-Id' => $this->organizationID,
             ],
         ]);
         $data = $response->toArray()['data'];
@@ -93,7 +94,7 @@ class ProductiveClient
         $this->setProjects($returnData);
     }
 
-    private function getRequestBody(array $data){
+    public function getRequestBody(array $data){
         return [
             "data" => [
                 "type" => "tasks",
@@ -106,13 +107,13 @@ class ProductiveClient
                     "project" => [
                         "data" => [
                             "type" => "projects",
-                            "id" => self::$selectedProject
+                            "id" => $this->selectedProject
                         ]
                     ],
                     "task_list" => [
                         "data" => [
                             "type" => "task_lists",
-                            "id" => self::$selectedTaskList
+                            "id" => $this->selectedTaskList
                         ]
                     ]
                 ]
@@ -123,62 +124,82 @@ class ProductiveClient
 
     public function getOrganizationID()
     {
-        return self::$organizationID;
+        return $this->organizationID;
     }
 
     public function setOrganizationID($organizationID)
     {
-        self::$organizationID = $organizationID;
+        $this->organizationID = $organizationID;
     }
 
     public function getApiKey()
     {
-        return self::$apiKey;
+        return $this->apiKey;
     }
 
     public function setApiKey($apiKey)
     {
-        self::$apiKey = $apiKey;
+        $this->apiKey = $apiKey;
     }
 
     public function getProjects()
     {
-        return self::$projects;
+        return $this->projects;
     }
 
     public function setProjects($projects)
     {
-        self::$projects = $projects;
+        $this->projects = $projects;
     }
 
     public function getSelectedProject()
     {
-        return self::$selectedProject;
+        return $this->selectedProject;
     }
 
     public function setSelectedProject($project)
     {
-        self::$selectedProject = $project;
+        $this->selectedProject = $project;
     }
 
     public function getTaskList()
     {
-        return self::$taskList;
+        return $this->taskList;
     }
 
     public function setTaskList($taskList)
     {
-        self::$taskList = $taskList;
+        $this->taskList = $taskList;
     }
 
     public function getSelectedTaskList()
     {
-        return self::$selectedTaskList;
+        return $this->selectedTaskList;
     }
 
     public function setSelectedTaskList($taskList)
     {
-        self::$selectedTaskList = $taskList;
+        $this->selectedTaskList = $taskList;
+    }
+
+    public function getFile()
+    {
+        return $this->file;
+    }
+
+    public function setFile($file): void
+    {
+        $this->file = $file;
+    }
+
+    public function getClient(): HttpClientInterface
+    {
+        return $this->client;
+    }
+
+    public function getData()
+    {
+        return $this->data;
     }
 
 

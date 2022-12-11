@@ -22,36 +22,22 @@ class TaskController extends AbstractController
 
     #[Route(path: '/upload-tasks', name: 'upload-tasks')]
     public function tasksFromFile(Request $request){
+        $form = $this->createForm(TaskUploadType::class, $this->productiveClient);
+        $form->handleRequest($request);
+        if ($form->isSubmitted()) {
+            if($form->isValid()){
+                $this->productiveClient = $form->getData();
+                $file = $this->productiveClient->getFile();
+                if($file){
+                    $file = fopen($file, 'r');
+                    while (! feof($file)) {
+                        $csvArray[] = fgetcsv($file, 1000, ';');
+                    }
+                    $this->checkFile($csvArray);
+                    fclose($file);
 
-        $form = $this->createForm(TaskUploadType::class);
-
-        $form->handleRequest($request);
-        $data = $form->getData();
-        if ($form->isSubmitted()) {
-            $this->productiveClient->setApiKey($data['api_key']);
-            $this->productiveClient->fetchProjects();
-        }
-        $form = $this->createForm(TaskUploadType::class);
-        $form->handleRequest($request);
-        $data = $form->getData();
-        if ($form->isSubmitted()) {
-            $this->productiveClient->setSelectedProject($data['project']);
-            $this->productiveClient->fetchTaskList();
-        }
-        $form = $this->createForm(TaskUploadType::class);
-        $form->handleRequest($request);
-        $data = $form->getData();
-        if ($form->isSubmitted()) {
-            $this->productiveClient->setSelectedTaskList($data['task_list']);
-            if($data['file']){
-                $file = $data['file'];
-                $file = fopen($file->getPathname(), 'r');
-                while (! feof($file)) {
-                    $csvArray[] = fgetcsv($file, 1000, ';');
+                    return $this->redirectToRoute('upload-tasks');
                 }
-                $this->checkFile($csvArray);
-                fclose($file);
-                return $this->redirectToRoute('upload-tasks');
             }
         }
         return $this->render('base.html.twig',[
